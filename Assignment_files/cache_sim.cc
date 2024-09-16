@@ -40,9 +40,6 @@ string int_to_hex(uint32_t num){
     std::stringstream ss;
     ss << std::hex << num;
     string res = ss.str();
-    // if(res.size() < 8){
-    //     res = string(8 - res.size(), '0') + res;
-    // }
     return res;
 }
 
@@ -239,30 +236,11 @@ class cache{
 
     }
 
-    // pair<string,int> handle_miss(string address, cache* victim_cache){
-    //     pair<string, int> tagAndSetIndex = decodeTagAndSetIndex(address, block_size, no_sets);
-    //     string tag = tagAndSetIndex.first;
-    //     int set_index = tagAndSetIndex.second;
-
-    //     if(cache_array[set_index].size() < assoc){
-    //         cache_array[set_index].push_front({tag, 0});
-    //         return {"", -1};
-    //     } else {
-    //         pair<string,int> evicted_block = cache_array[set_index].back();
-    //         cache_array[set_index].pop_back();
-    //         cache_array[set_index].push_front({tag, 0});
-    //         return evicted_block;
-    //     }
-    // }
 
 };
 
 int main(int argc, char** argv) {
 
-    // string test = "423aeba0";
-    // pair<string, int> res = decodeTagAndSetIndex(test, 16, 256);
-    // cout << res.first << " sd " << res.second << endl;
-    
 
     if (argc != 8){
         cout << "Usage: ./cache_sim <L1_SIZE> <L1_ASSOC>\n"
