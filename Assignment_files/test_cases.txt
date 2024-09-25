@@ -1,0 +1,8 @@
+1024 2 16 0 0 0 gcc_trace.txt
+1024 2 16 16 0 0 gcc_trace.txt
+1024 2 16 0 8192 4 gcc_trace.txt
+1024 2 16 16 8192 4 gcc_trace.txt
+1024 1 16 0 0 0 gcc_trace.txt
+1024 1 16 16 0 0 gcc_trace.txt
+1024 1 16 0 8192 4 gcc_trace.txt
+1024 1 16 16 8192 4 gcc_trace.txt
