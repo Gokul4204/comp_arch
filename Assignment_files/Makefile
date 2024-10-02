@@ -5,7 +5,7 @@ WARN = -Wall
 CFLAGS = $(OPT) $(WARN) $(INC) $(LIB)
 
 # List all your .cpp files here (source files, excluding header files)
-SIM_SRC = cache_sim.cpp
+SIM_SRC = cache_sim.cc
 
 # List corresponding compiled object files here (.o files)
 SIM_OBJ = cache_sim.o

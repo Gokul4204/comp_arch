@@ -8,10 +8,12 @@ int L1_BLOCKSIZE;
 int VC_NUM_BLOCKS;
 int L2_SIZE;
 int L2_ASSOC;
-float area = 0;
-int main_memory_accesses = 0;
+int main_memory_accesses;
 float main_memory_access_time;
 float total_access_time = 0;
+int total_memory_traffic;
+long double energy = 0.0;
+float area = 0;
 string trace_file;
 
 
@@ -117,8 +119,8 @@ class Cache{
     int swap_requests;
     int swaps_served;
     int vc_num_blocks;
-    float *AccessTime; 
-    float *Energy;
+    long double *AccessTime; 
+    long double *Energy;
     float *Area;
 
 
@@ -138,8 +140,8 @@ class Cache{
         this->swap_requests = 0;
         this->swaps_served = 0;
         this->vc_num_blocks = 0;
-        this->AccessTime = new float;
-        this->Energy = new float;
+        this->AccessTime = new long double;
+        this->Energy = new long double;
         this->Area = new float;
 
         this->cache_array = vector<vector<block*>>(no_sets, vector<block*>());
@@ -166,18 +168,17 @@ class Cache{
         else{
             // Block was not found in cache
 
-            is_write ? write_misses++ : read_misses++;
-            
+            is_write ? write_misses++ : read_misses++; 
             if(cache_array[set_index].size() < assoc){
                 // Don't need to evict any block from current level
                 // Have to perform read from next level
+
                 push_front(cache_array[set_index], new_block);
                 return (new block("", -1, "", -2));
             } else {
                 // Need to evict a block from current level
                 // Have to write back to next level if evicted block is dirty
                 
-
                 block* evicted_block = reconstruct_block((cache_array[set_index]).back(), no_sets, 1);
                 assert(((cache_array[set_index]).back())->address == evicted_block->address);
                 assert(evicted_block->tag == evicted_block->address);
@@ -185,30 +186,23 @@ class Cache{
                 assert(evicted_block->dirty == 0 || evicted_block->dirty == 1);
                 assert(evicted_block->dirty == ((cache_array[set_index]).back())->dirty);
                 (cache_array[set_index]).pop_back();
-                // cout<<"search ("<<tag<<":"<<new_block->address<<") == ";
-                // assert(cache_array[set_index].size() == assoc);
                 if(vc_num_blocks != 0){
                     // VC enabled for current cache level
+
                     swap_requests++;
-                    victim->reads++;
-                    // push_front(cache_array[set_index], new_block);
-                    
+                    victim->reads++;                    
                     int vc_set_index = find_address(victim->cache_array, new_block->address, 0);
                     if(vc_set_index != -1){
                         // Block found in VC
                         // Swap evicted block with block in VC
                         // No need to read from next level
 
-                        // cout<<"swap ==> ("<<evicted_block->tag<<":"<<evicted_block->address<<")"<<endl;
                         swaps_served++;
-                        // cache_array[set_index][0]->dirty |= ((victim->cache_array)[0][vc_set_index])->dirty;
                         new_block->dirty |= ((victim->cache_array)[0][vc_set_index])->dirty;
                         (victim->cache_array)[0][vc_set_index] = evicted_block;
                         rotate(victim->cache_array[0].begin(), victim->cache_array[0].begin() + vc_set_index, 
                             victim->cache_array[0].begin() + vc_set_index + 1);
                         push_front(cache_array[set_index], new_block);
-                        // cache_array[set_index].push_back(new_block);
-
                         return (new block("", -1, "", -1));
                     }
                     else{
@@ -275,10 +269,13 @@ class Cache{
 
     void call_cacti(){
         int error_code = get_cacti_results(size, block_size, assoc, AccessTime, Energy, Area);
-        if(error_code > 0) {cout<<name<<endl;*AccessTime = 0.2;}
+        // assert((name == "VC") || (error_code == 0));
+        if(error_code > 0) {*AccessTime = 0.2;}
         area += *Area;
-        total_access_time += (*AccessTime) * (reads);
-        if(name == "L1") total_access_time += *AccessTime * writes;
+        total_access_time += (*AccessTime) * reads;
+        energy += (*Energy) * (reads + writes + read_misses + write_misses);
+        if(name == "L1") total_access_time += (*AccessTime) * writes;
+        if(name == "VC") energy -= (*Energy) * ((read_misses - reads));
     }
 
 };
@@ -353,11 +350,6 @@ int main(int argc, char** argv) {
             address = string(8 - address.size(), '0') + address;
         }
 
-        // if(decodeTagAndSetIndex(address, L1_BLOCKSIZE, L1->no_sets)->set_index == 4){
-        //     cout<<access_type<<" "<<decodeTagAndSetIndex(address, L1_BLOCKSIZE, L1->no_sets)->tag<<endl;
-        // }
-        // cout<<access_type<<" "<<decodeTagAndSetIndex(address, L1_BLOCKSIZE, L1->no_sets)->tag<<endl;
-
         block* evicted_block = L1->perform_operation(address, victim, access_type == "w");
         
         if(evicted_block->dirty == -1){
@@ -374,26 +366,27 @@ int main(int argc, char** argv) {
 
     }
 
+    L1->call_cacti();
     L1->print();
 
-    if(VC_NUM_BLOCKS != 0) victim->print();
-
-    if(L2_PRESENT) L2->print();
-
-    main_memory_access_time = 20.0 + (1.0 * L1_BLOCKSIZE) / 16;
-    int main_memory_accesses1 = L1->read_misses + L1->write_misses - L1->swaps_served;
-    L1->call_cacti();
-
-    if(VC_NUM_BLOCKS != 0) victim->call_cacti();
+    if(VC_NUM_BLOCKS != 0){
+        victim->call_cacti();
+        victim->print();
+    }
 
     if(L2_PRESENT){
         L2->call_cacti();
-        main_memory_accesses1 = L2->read_misses + L2->write_misses;
-        main_memory_accesses1 -= L2->write_misses;
+        L2->print();
     }
 
+    main_memory_access_time = 20.0 + (1.0 * L1_BLOCKSIZE) / 16;
+    main_memory_accesses = L2_PRESENT ? (L2->read_misses) : (L1->read_misses + L1->write_misses - L1->swaps_served);
+    total_access_time = total_access_time + 1.0 * main_memory_accesses * main_memory_access_time;
+    total_memory_traffic = L2_PRESENT ? (L2->read_misses + L2->write_misses + L2->write_backs) 
+                                        : (L1->read_misses + L1->write_misses - L1->swaps_served + L1->write_backs);
 
-    total_access_time = total_access_time + 1.0 * main_memory_accesses1 * main_memory_access_time;
+    energy += total_memory_traffic * 0.05;
+    long double edp = energy * total_access_time;
 
     cout << fixed << setprecision(4);
     cout << "===== Simulation results (raw) =====" << endl;
@@ -406,26 +399,23 @@ int main(int argc, char** argv) {
     cout << "g. number of swaps: \t" << L1->swaps_served << endl;
     cout << "h. combined L1+VC miss rate: \t" << (1.0 * (L1->read_misses + L1->write_misses - L1->swaps_served) / (L1->reads + L1->writes)) << endl;
     cout << "i. number writebacks from L1/VC: \t" << L1->write_backs << endl;
-    if(L2_PRESENT) cout << "j. number of L2 reads: \t" << L2->reads << endl;
-    else cout << "j. number of L2 reads: \t" << 0 << endl;
-    if(L2_PRESENT) cout << "k. number of L2 read misses: \t" << L2->read_misses << endl;
-    else cout << "k. number of L2 read misses: \t" << 0 << endl;
-    if(L2_PRESENT) cout << "l. number of L2 writes: \t" << L2->writes << endl;
-    else cout << "l. number of L2 writes: \t" << 0 << endl;
-    if(L2_PRESENT) cout << "m. number of L2 write misses: \t" << L2->write_misses << endl;
-    else cout << "m. number of L2 write misses: \t" << 0 << endl;
-    if(L2_PRESENT) cout << "n. L2 miss rate: \t" << (1.0 * (L2->read_misses) / (L2->reads)) << endl;
-    else cout << "n. L2 miss rate: \t" << 0.0000 << endl;
-    if(L2_PRESENT) cout << "o. number of writebacks from L2: \t" << L2->write_backs << endl;
-    else cout << "o. number of writebacks from L2: \t" << 0 << endl;
+    cout << "j. number of L2 reads: \t" << (L2_PRESENT ? L2->reads : 0) << endl;
+    cout << "k. number of L2 read misses: \t" << (L2_PRESENT ? L2->read_misses : 0) << endl;
+    cout << "l. number of L2 writes: \t" << (L2_PRESENT ? L2->writes : 0) << endl;
+    cout << "m. number of L2 write misses: \t" << (L2_PRESENT ? L2->write_misses : 0) << endl;
+    cout << "n. L2 miss rate: \t" << (L2_PRESENT ? (1.0 * (L2->read_misses) / (L2->reads)) : 0.0000) << endl;
+    cout << "o. number of writebacks from L2: \t" << (L2_PRESENT ? L2->write_backs : 0) << endl;
+    cout << "p. total memory traffic: \t" << total_memory_traffic << endl;
     cout << endl;
+
 
 
 
     cout << "===== Simulation results (performance) =====" << endl;
     cout << "1. average access time: \t" << (1.0 * total_access_time / (L1->reads + L1->writes)) << endl;
-    // cout << "2. energy-delay product: \t" << L1->Energy << endl;
+    cout << "2. energy-delay product: \t" << edp << endl;
     cout << "3. total area: \t" << area << endl;
+
     return 0;
 
 }
