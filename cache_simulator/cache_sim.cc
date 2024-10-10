@@ -274,7 +274,7 @@ class Cache{
         area += *Area;
         total_access_time += (*AccessTime) * reads;
         energy += (*Energy) * (reads + writes + read_misses + write_misses);
-        if(name == "L1") to tal_access_time += (*AccessTime) * writes;
+        if(name == "L1") total_access_time += (*AccessTime) * writes;
         if(name == "VC") energy -= (*Energy) * ((read_misses - reads));
     }
 
